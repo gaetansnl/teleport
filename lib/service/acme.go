@@ -64,11 +64,11 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 	}
 	if trace.IsNotFound(err) {
 		return trace.BadParameter(
-			"acme can't get a cert for %v, there is no app with this name", host)
+			"acme cannot get a cert for %v, there is no app with this name", host)
 	}
 
 	return trace.BadParameter(
-		"acme can't get a cert for domain %v, add it to the proxy_service.public_addr, or use one of the domains: %v",
+		"acme cannot get a cert for domain %v, add it to the proxy_service.public_addr, or use one of the domains: %v",
 		host, strings.Join(h.dnsNames, ","))
 }
 
