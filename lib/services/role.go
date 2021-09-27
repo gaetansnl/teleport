@@ -2178,10 +2178,11 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 				}
 				continue
 			}
+			negated := types.WhereExpr{Not: &expr}
 			if denyCond == nil {
-				denyCond = &expr
+				denyCond = &negated
 			} else {
-				denyCond = &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: &types.WhereExpr{Not: &expr}}}
+				denyCond = &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: &negated}}
 			}
 		}
 	}

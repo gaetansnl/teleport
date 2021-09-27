@@ -450,6 +450,20 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			lit, err := ctx.GetIdentifier(fields)
 			return types.WhereExpr{Literal: lit}, trace.Wrap(err)
 		},
-		// TODO: Add support for GetProperty.
+		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
+			mapExpr, mapOK := mapVal.(types.WhereExpr)
+			if !mapOK {
+				mapExpr = types.WhereExpr{Literal: mapVal}
+			}
+			keyExpr, keyOK := keyVal.(types.WhereExpr)
+			if !keyOK {
+				keyExpr = types.WhereExpr{Literal: keyVal}
+			}
+			if mapExpr.Literal == nil || keyExpr.Literal == nil {
+				// TODO: Add support for general WhereExpr.
+				return nil, trace.BadParameter("GetProperty is implemented only for literals")
+			}
+			return GetStringMapValue(mapExpr.Literal, keyExpr.Literal)
+		},
 	})
 }

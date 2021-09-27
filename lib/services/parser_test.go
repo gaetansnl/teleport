@@ -26,6 +26,7 @@ import (
 )
 
 func TestParserForIdentifierSubcondition(t *testing.T) {
+	t.Parallel()
 	user, err := types.NewUser("test-user")
 	require.NoError(t, err)
 	testCase := func(cond string, expected types.WhereExpr) func(*testing.T) {
