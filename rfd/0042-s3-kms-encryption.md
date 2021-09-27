@@ -135,5 +135,9 @@ IAM ARN of the user used by the read-only cluster.
 
 ### Key Access
 
-All IAM users that are to use the key must be specified with their respective ARNs
+IAM users that are to use the key must be specified with their respective ARNs
 in the policy in order to grant access. By default, IAM users do not have access to any key.
+
+IAM users with the policy `AdministratorAccess` are almost equivalent to root accounts which grants them
+access by default to KMS keys. An explicit `Deny` clause will need to added to such users in the admin section
+of the KMS policy to prevent them from accessing the keys.
