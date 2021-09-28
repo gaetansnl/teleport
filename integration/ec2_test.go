@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr) *service.Config {
 	return config
 }
 
-func newAuthConfig(t *testing.T) *service.Config {
+func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	var err error
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
@@ -76,6 +77,7 @@ func newAuthConfig(t *testing.T) *service.Config {
 		config.Proxy.WebAddr.Addr = net.JoinHostPort(Host, ports.Pop())
 	*/
 	config.CachePolicy.Enabled = true
+	config.Clock = clock
 	return config
 }
 
@@ -104,7 +106,9 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	authConfig := newAuthConfig(t)
+	clock := clockwork.NewFakeClockAt(iid.PendingTime.Add(time.Second))
+
+	authConfig := newAuthConfig(t, clock)
 	authSvc, err := service.NewTeleport(authConfig)
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
