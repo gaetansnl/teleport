@@ -112,8 +112,10 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	authSvc, err := service.NewTeleport(authConfig)
 	require.NoError(t, err)
 	require.NoError(t, authSvc.Start())
+	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
+	authServer.SetClock(clock)
 
 	err = authServer.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
@@ -126,6 +128,7 @@ func TestSimplifiedNodeJoin(t *testing.T) {
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
+	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
 	require.Eventually(t, func() bool {
 		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
