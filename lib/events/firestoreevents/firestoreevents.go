@@ -136,6 +136,9 @@ const (
 	// eventNamespaceDocProperty is used internally to query for records and matches the key in the event struct tag
 	eventNamespaceDocProperty = "eventNamespace"
 
+	// eventTypeDocProperty is the event struct tag associated with EventType.
+	eventTypeDocProperty = "eventType"
+
 	// credentialsPath is used to supply credentials to teleport via JSON-typed service account key file
 	credentialsPath = "credentialsPath"
 
@@ -498,7 +501,6 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 
 func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
-	doFilter := len(eventTypes) > 0
 
 	var lastKey int64
 	var values []events.EventFields
@@ -532,14 +534,18 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	start := time.Now()
-	docSnaps, err := modifyquery(l.svc.Collection(l.CollectionName).
+	query := modifyquery(l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
-		Limit(limit).
-		Documents(l.svcContext).GetAll()
+		Limit(limit)
+	if len(eventTypes) > 0 {
+		query = query.Where(eventTypeDocProperty, "in", eventTypes)
+	}
+
+	start := time.Now()
+	docSnaps, err := query.Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
@@ -563,29 +569,21 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 			return nil, 0, "", firestorebk.ConvertGRPCError(err)
 		}
 
-		var fields events.EventFields
 		data := []byte(e.Fields)
+		if totalSize+len(data) >= spaceRemaining {
+			break
+		}
+
+		var fields events.EventFields
 		if err := json.Unmarshal(data, &fields); err != nil {
 			return nil, 0, "", trace.Errorf("failed to unmarshal event %v", err)
 		}
-		var accepted bool
-		for i := range eventTypes {
-			if fields.GetString(events.EventType) == eventTypes[i] {
-				accepted = true
-				break
-			}
-		}
-		if accepted || !doFilter {
-			if totalSize+len(data) >= spaceRemaining {
-				break
-			}
 
-			lastKey = docSnap.Data()["createdAt"].(int64)
-			values = append(values, fields)
-			totalSize += len(data)
-			if limit > 0 && len(values) >= limit {
-				break
-			}
+		lastKey = docSnap.Data()[createdAtDocProperty].(int64)
+		values = append(values, fields)
+		totalSize += len(data)
+		if limit > 0 && len(values) >= limit {
+			break
 		}
 	}
 
@@ -639,24 +637,32 @@ func (l *Log) getIndexParent() string {
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	tuples := make([]*firestorebk.IndexTuple, 0)
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       sessionIDDocProperty,
-		SecondField:      eventIndexDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
-	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
-	return err
+	indexes := []firestorebk.CompositeIndex{
+		{
+			{Field: eventNamespaceDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: createdAtDocProperty, Order: admin.Index_IndexField_ASCENDING},
+		},
+		{
+			{Field: eventNamespaceDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: createdAtDocProperty, Order: admin.Index_IndexField_DESCENDING},
+		},
+		{
+			{Field: eventNamespaceDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: eventTypeDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: createdAtDocProperty, Order: admin.Index_IndexField_ASCENDING},
+		},
+		{
+			{Field: eventNamespaceDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: eventTypeDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: createdAtDocProperty, Order: admin.Index_IndexField_DESCENDING},
+		},
+		{
+			{Field: sessionIDDocProperty, Order: admin.Index_IndexField_ASCENDING},
+			{Field: eventIndexDocProperty, Order: admin.Index_IndexField_ASCENDING},
+		},
+	}
+	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, indexes, l.getIndexParent())
+	return trace.Wrap(err)
 }
 
 // Close the Firestore driver

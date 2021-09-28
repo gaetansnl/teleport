@@ -715,53 +715,42 @@ func (b *Backend) getIndexParent() string {
 }
 
 func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	tuples := []*IndexTuple{{
-		FirstField:       keyDocProperty,
-		SecondField:      expiresDocProperty,
-		SecondFieldOrder: adminpb.Index_IndexField_ASCENDING,
+	indexes := []CompositeIndex{{
+		{Field: keyDocProperty, Order: adminpb.Index_IndexField_ASCENDING},
+		{Field: expiresDocProperty, Order: adminpb.Index_IndexField_ASCENDING},
 	}}
-	return EnsureIndexes(b.clientContext, adminSvc, tuples, b.getIndexParent())
+	return EnsureIndexes(b.clientContext, adminSvc, indexes, b.getIndexParent())
 }
 
-type IndexTuple struct {
-	FirstField       string
-	SecondField      string
-	SecondFieldOrder adminpb.Index_IndexField_Order
+type IndexFieldSpec struct {
+	Field string
+	Order adminpb.Index_IndexField_Order
 }
+
+type CompositeIndex []IndexFieldSpec
 
 type indexTask struct {
 	operation *apiv1.CreateIndexOperation
-	tuple     *IndexTuple
+	index     CompositeIndex
 }
 
 // EnsureIndexes is a function used by Firestore events and backend to generate indexes and will block until
 // indexes are reported as created
-func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tuples []*IndexTuple, indexParent string) error {
+func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, compositeIndexes []CompositeIndex, indexParent string) error {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
-
-	ascendingFieldOrder := &adminpb.Index_IndexField_Order_{
-		Order: adminpb.Index_IndexField_ASCENDING,
-	}
 
 	var tasks []indexTask
 
-	// create the indexes
-	for _, tuple := range tuples {
-		secondFieldOrder := &adminpb.Index_IndexField_Order_{
-			Order: tuple.SecondFieldOrder,
+	// Create the (potentially) composite indexes.
+	for _, index := range compositeIndexes {
+		fields := make([]*adminpb.Index_IndexField, 0, len(index))
+		for _, tuple := range index {
+			fields = append(fields, &adminpb.Index_IndexField{
+				FieldPath: tuple.Field,
+				ValueMode: &adminpb.Index_IndexField_Order_{Order: tuple.Order},
+			})
 		}
 
-		fields := []*adminpb.Index_IndexField{
-			{
-				FieldPath: tuple.FirstField,
-				ValueMode: ascendingFieldOrder,
-			},
-			{
-				FieldPath: tuple.SecondField,
-				ValueMode: secondFieldOrder,
-			},
-		}
-		l.Infof("%v", fields)
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
 			Parent: indexParent,
 			Index: &adminpb.Index{
@@ -774,7 +763,7 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 		}
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
-			tasks = append(tasks, indexTask{operation, tuple})
+			tasks = append(tasks, indexTask{operation, index})
 		}
 	}
 
@@ -815,7 +804,7 @@ func waitOnIndexCreation(ctx context.Context, l *log.Entry, task indexTask) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	l.Infof("Creating index for tuple %s-%s with name %s.", task.tuple.FirstField, task.tuple.SecondField, meta.Index)
+	l.Infof("Creating index %+v with name %q.", task.index, meta.Index)
 
 	_, err = task.operation.Wait(ctx)
 	if err != nil {
