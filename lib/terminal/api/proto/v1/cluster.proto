@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/terminal/v1";
+
+// Cluster describes cluster fields
+message Cluster {
+    // Name is the cluster name
+    string Name = 1;
+    // Connected indicates if connection to the cluster has been established
+    bool Connected = 2;
+    // ACL is the cluster aCL
+    ACL ACL = 3;
+}
+
+// Access describes access verbs
+message Access {
+    // List determines "list" access
+    bool List = 1;
+    // Read determines "read" access
+    bool Read = 2;
+    // Edit determines "edit" access
+    bool Edit = 3;
+    // Create determines "create" access
+    bool Create = 4;
+    // Delete determines "delete" access
+    bool Delete = 5;
+}
+
+// ACL is the access control list of the user
+message ACL {
+    // Sessions defines access to recorded sessions
+    Access Sessions = 1;
+    // AuthConnectors defines access to auth.connectors
+    Access AuthConnectors = 2;
+    // Roles defines access to roles
+    Access Roles = 3;
+    // Users defines access to users.
+    Access Users = 4;
+    // TrustedClusters defines access to trusted clusters
+    Access TrustedClusters = 5;
+    // Events defines access to audit logs
+    Access Events = 6;
+    // Tokens defines access to tokens.
+    Access Tokens = 7;
+    // Servers defines access to servers.
+    Access Servers = 8;
+    // AppServers defines access to application servers
+    Access AppServers = 9;
+    // DBServers defines access to database servers.
+    Access DBServers = 10;
+    // KubeServers defines access to kubernetes servers.
+    Access KubeServers = 11;
+    // SSH defines access to servers
+    repeated string SSHLogins = 12;
+    // AccessRequests defines access to access requests
+    Access AccessRequests = 13;
+    // Billing defines access to billing information
+    Access Billing = 14;
+}

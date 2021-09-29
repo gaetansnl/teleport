@@ -1711,6 +1711,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	// Look if a user identity was given via -i flag
+	fmt.Print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
 	if cf.IdentityFileIn != "" {
 		// Ignore local authentication methods when identity file is provided
 		c.SkipLocalAuth = true
@@ -1780,13 +1781,16 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", cf.Proxy, err)
 		}
 	}
+
 	// 3: override with the CLI flags
 	if cf.Namespace != "" {
 		c.Namespace = cf.Namespace
 	}
 	if cf.Username != "" {
+		fmt.Print("NOOOOOOOOOOOOOOOOOOOOOOOOOO USUUUUUUUUUUUUUUUUUUUUUSER", cf.Username)
 		c.Username = cf.Username
 	}
+
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
 	if err := setClientWebProxyAddr(cf, c); err != nil {
@@ -1885,6 +1889,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 
 	tc, err := client.NewClient(c)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

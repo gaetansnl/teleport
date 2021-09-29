@@ -643,6 +643,9 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}, nil
 }
 
+// TODO (alexeyk): make proper renames everywhere
+var StatusFromFile = readProfile
+
 // StatusCurrent returns the active profile status.
 func StatusCurrent(profileDir, proxyHost string) (*ProfileStatus, error) {
 	active, _, err := Status(profileDir, proxyHost)
@@ -2067,8 +2070,10 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		// Instead, load SSH certs for all clusters we have (by passing an
 		// empty string to certsForCluster).
 		signers, err := tc.localAgent.certsForCluster("")
+		fmt.Print("SIIIIIIIIIIIIIIIIIIII", signers)
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
+
 		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}

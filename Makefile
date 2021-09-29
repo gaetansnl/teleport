@@ -704,6 +704,8 @@ buildbox-grpc:
 	  --gogofast_out=plugins=grpc:.\
     types.proto
 
+	cd lib/terminal && buf generate
+
 .PHONY: goinstall
 goinstall:
 	go install $(BUILDFLAGS) \

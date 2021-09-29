@@ -21,6 +21,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/teleport/lib/terminal"
+
 	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
@@ -29,12 +30,8 @@ import (
 var (
 	logFormat = flag.String("log_format", "", "Log format to use (json or text)")
 	logLevel  = flag.String("log_level", "", "Log level to use")
-
-	addr      = flag.String("addr", "tcp://localhost:", "Bind address for the Terminal server")
-	certFile  = flag.String("cert_file", "", "Cert file (or inline PEM) for the Terminal server. Enables TLS.")
-	certKey   = flag.String("cert_key", "", "Key file (or inline PEM) for the Terminal server. Enables TLS.")
-	clientCAs = flag.String("client_cas", "", "Client CA certificate (or inline PEM) for the Terminal server. Enables mTLS.")
-	stdin     = flag.Bool("stdin", false, "Read server configuration from stdin")
+	addr      = flag.String("addr", "unix://socket", "Bind address for the Terminal API server")
+	homeDir   = flag.String("home_dir", "", "Directory to store Terminal Daemon data")
 )
 
 func main() {
@@ -42,7 +39,7 @@ func main() {
 	configureLogging()
 
 	if err := run(); err != nil {
-		log.Fatal(err)
+		log.Fatal(trace.Wrap(err))
 	}
 }
 
@@ -70,24 +67,14 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var trustedCAs []string
-	if *clientCAs != "" {
-		trustedCAs = []string{*clientCAs}
-	}
-	server, err := terminal.Start(ctx, terminal.ServerOpts{
+	err := terminal.Start(ctx, terminal.Config{
+		HomeDir:         *homeDir,
 		Addr:            *addr,
-		CertFile:        *certFile,
-		KeyFile:         *certKey,
-		ClientCAs:       trustedCAs,
-		ReadFromInput:   *stdin,
-		ConfigInput:     os.Stdin,
-		ConfigOutput:    os.Stdout,
 		ShutdownSignals: []os.Signal{os.Interrupt, syscall.SIGTERM},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("tshd running at %v", server.Addr)
-	return <-server.C
+	return nil
 }
